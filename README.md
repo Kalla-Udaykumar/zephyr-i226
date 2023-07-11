@@ -1,6 +1,10 @@
 # zephyr-i226
 Jenkins Build setup for the zephyr i226 Repo
 
+## Test Job
+  - [ZEPHYR-I226-BUILD](https://cbjenkins-pg.devtools.intel.com/teams-iotgdevops01/job/iotgdevops01/job/ESC/job/UKALLA/job/JI_1509/job/ZEPHYR-I226-BUILD)
+
+
 ## Sample Jenkins Job
   - [EHL-ZEPHYR.IA-TSN-CI-PCT](https://cbjenkins-pg.devtools.intel.com/teams-iotgdevops01/job/iotgdevops01/job/EHL-ZEPHYR.IA-TSN-CI-PCT)
 
