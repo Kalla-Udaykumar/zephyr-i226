@@ -1,1 +1,242 @@
 #!groovy
+@Library('abi@2.4.0') _
+
+import owm.common.BuildInfo
+Map buildinfo = BuildInfo.instance.data
+
+email_receipients = "Muhammad.Husaini.Zulkifli@intel.com"
+subject = '$DEFAULT_SUBJECT'
+body = '${SCRIPT, template="managed:abi.html"}'
+
+linuxcloudName = 'gar-png-nswe-sws-ada'
+
+def podDefinitionYaml = """
+kind: Pod
+apiVersion: v1
+spec:
+  volumes:
+    - name: nfs
+      persistentVolumeClaim:
+        claimName: png-nfs
+    - name: github-config
+      secret:
+        secretName: gitconfig
+    - name: sshkeys
+      secret:
+        secretName: ssh-keys
+    - name: netrc-lab
+      secret:
+        secretName: netrc
+  nodeSelector:
+    platform: ESC
+  containers:
+  - name: jnlp
+    image: amr-registry.caas.intel.com/owr/iotg/labbldmstr_iotg_jnlp_lnx:latest
+    env:
+      - name: KUB_NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    tty: true
+    imagePullPolicy: Always
+    securityContext:
+      runAsUser: 44051
+  - name: build-environment1
+    image: amr-registry.caas.intel.com/esc-devops/ehl/zephyr-ia/tsn/ub20:20230310_1127
+    resources:
+      requests:
+        cpu: "8.0"
+        memory: "16Gi"
+      limits:
+        cpu: "9.0"
+        memory: "18Gi"
+    env:
+      - name: KUB_NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    tty: true
+    imagePullPolicy: Always
+    securityContext:
+      runAsUser: 44051
+    command:
+    - /bin/bash
+    args:
+    - -c
+    - sleep 36000
+    volumeMounts:
+    - name: nfs
+      mountPath: "/build/tools/"
+    - mountPath: "/home/lab_bldmstr/.gitconfig"
+      name: github-config
+      subPath: ".gitconfig"
+    - mountPath: "/home/lab_bldmstr/.ssh/"
+      name: sshkeys
+    - name: netrc-lab
+      mountPath: "/home/lab_bldmstr/.netrc"
+      subPath: ".netrc"
+
+"""
+
+def print_node_name() {
+    println("POD running on === ${KUB_NODE_NAME} === worker machine")
+}
+
+pipeline {
+    agent {
+        kubernetes {
+            cloud linuxcloudName
+            defaultContainer 'build-environment'
+            label "linux-builds-${env.JOB_BASE_NAME}-${UUID.randomUUID().toString()}"
+            slaveConnectTimeout '600000'
+            yaml podDefinitionYaml
+            }
+    }
+    environment {
+        DATETIME = new Date().format("yyyyMMdd-HHmm");
+        BUILD_YEAR = new Date().format("yyyy")
+        BuildVersion = "1.0.000"
+        ABI_CONTAINER = "TRUE"
+        API_ID = credentials('github-api-token')
+        ARTIFACTORY_REPO = "hspe-tsn_automation-png-local/ehl/zephyr-ia/tsn"
+        ARTIFACTORY_SERVER = "af01p-png.devtools.intel.com"
+    }
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '90', artifactDaysToKeepStr: '30'))
+        skipDefaultCheckout()
+    }
+    parameters {
+        booleanParam(name: 'EMAIL', defaultValue: true, description: 'Email notification upon job completion')
+        booleanParam(name: 'PUBLISH', defaultValue: true, description: 'Artifacts deployment')
+        string(name: 'BRANCH', trim: true, defaultValue: '', description: '''Git Branch, Tag, or CommitID identifier.
+        Example: refs/heads/(branch), refs/tags/(tag), full or first 7 digits of SHA-1 hash''')
+    }
+    stages {
+        stage('SCM') {
+            parallel {
+                stage("Henosis-Repo") {
+                    steps {
+                    sh""" ls /build/tools"""
+                    // checkout([$class: 'GitSCM',
+                    // userRemoteConfigs: [[credentialsId: 'GitHub-Token', url: 'https://github.com/intel-innersource/libraries.devops.jenkins.cac.git']],
+                    // branches: [[name: 'master']],
+                    // extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'abi/henosis'],
+                    // [$class: 'ScmName', name: 'henosis'],
+                    // [$class: 'CloneOption', timeout: 60],
+                    // [$class: 'CleanBeforeCheckout'],
+                    // [$class: 'CheckoutOption', timeout: 60]]])
+
+                    checkout([$class: 'GitSCM',
+                    userRemoteConfigs: [[credentialsId: 'GitHub-Token', url: 'https://github.com/Kalla-Udaykumar/zephyr-i226.git']],
+                    branches: [[name: 'master']],
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'abi/henosis'],
+                    [$class: 'ScmName', name: 'henosis'],
+                    [$class: 'CloneOption', timeout: 60],
+                    [$class: 'CleanBeforeCheckout'],
+                    [$class: 'CheckoutOption', timeout: 60]]])
+                    }
+                }
+                stage("Build Automation Repo") {
+                    steps {
+                    checkout([$class: 'GitSCM',
+                    userRemoteConfigs: [[credentialsId: 'GitHub-Token', url: "https://github.com/intel-innersource/libraries.devops.henosis.build.automation.services.git"]],
+                    branches: [[name: "master"]],
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'abi/automation'],
+                    [$class: 'ScmName', name: 'eng-services'],
+                    [$class: 'CloneOption', timeout: 60],
+                    [$class: 'CleanBeforeCheckout'],
+                    [$class: 'CheckoutOption', timeout: 60]]])
+                    }
+                }
+            }
+        }
+        stage('ABI') {
+            steps {
+               script {
+                    abi.shell("cp -r ${WORKSPACE}/abi/henosis/setup/idf/ ${WORKSPACE}/abi/idf/")
+                    PrepareWS()
+                }
+            }
+        }
+        stage('BUILD') {
+            steps {
+                script {
+                    BuildInfo.instance.data["Version"] = env.BuildVersion
+                    PrepareWS()
+                    abi_build subComponentName: "scm"                 
+                    abi_build subComponentName: "build", additionalFlags: "ehl_crb"
+                }
+            }
+        }
+        stage('PUBLISH') {
+            steps {
+                script {
+                    dir("${WORKSPACE}/upload") {
+                        def buildInfo = Artifactory.newBuildInfo()
+                        def artServer = Artifactory.server "${ARTIFACTORY_SERVER}"
+                        def kwrpt  = """{
+                            "files": [
+                                {
+                                    "pattern": "*",
+                                    "target": "${ARTIFACTORY_REPO}/i226/${BUILD_YEAR}/${env.DATETIME}/",
+                                    "props": "retention.days=30",
+                                    "flat" : "false"
+                                }
+                            ]
+                        }"""
+                        artServer.upload spec: kwrpt, buildInfo: buildInfo
+                        artServer.publishBuildInfo buildInfo
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                // To trigger Log Parser build to push Build log to Splunk Server.
+                build job: 'iotgdevops01/ADM-LOG_PARSER',
+                parameters: [ stringParam(name: 'JOB_RESULT', value: "${currentBuild.result}"),
+                stringParam(name: 'BUILD_URL', value: "${env.BUILD_URL}"), booleanParam(name: 'SPLUNK', value: true)
+                ], wait: false, propagate: false
+
+                if (params.EMAIL == true) {
+                   abi_send_email.SendEmail("${email_receipients}","${body}","${subject}")
+                }
+            }
+        }
+    }
+}
+
+// Prepare the workspace for the ingredient
+void PrepareWS(String BuildConfig="idf/BuildConfig.json") {
+    log.Debug("Enter")
+
+    log.Info("This build is running on Node:${env.NODE_NAME} WorkSpace: ${env.WORKSPACE}")
+
+    abi_setup_proxy()
+    
+    abi_init config: BuildConfig, ingPath: "abi", checkoutPath: "abi", skipCheckout: true
+
+    def ctx
+    ctx = abi_get_current_context()
+    ctx['IngredientVersion'] = env.BuildVersion
+    abi_set_current_context(ctx)
+
+    log.Debug("Exit")
+}
+
+void set_custom_artifactpkg_name(String ArtifactPkgName) {
+    log.Debug("Enter")
+
+    def ctx
+    // Define custom package name for Artifacts
+    ctx = abi_get_current_context()
+    custom_name = ["ArtifactPackageFile" : "", "ArtifactPackageName" : ArtifactPkgName, "Type" : "ArtifactGen"]
+    ctx['Outputs'].add(custom_name)
+    abi_set_current_context(ctx)
+
+    log.Debug("Exit")
+}
