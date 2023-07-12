@@ -1,1 +1,37 @@
 
+{
+    "IngredientName": "ehl-zephyr-i226",
+    "Description": "IDF ABI Project Config File for ehl-zephyr-i226 Ingredient",
+    "OutputConfiguration": "idf/PackageGen.json",
+    "OutputRoot": "OWRBin",
+    "OutputDir": "OWRBuild",
+    "PackageRoot": "OWRPackage",
+    "PackageMetadataTemplate": "idf/PackageMetadataTemplate.json",
+    "SubComponents": [
+        {
+            "Name": "scm",
+            "Description": "scm for ehl-zephyr-i226",
+            "ProjectFile": "./scm.sh",
+            "ProjectType": "Script",
+            "WorkingDirectory": "idf",
+            "AdditionalFlags": "",
+            "AdditionalEnvVars": "",
+            "Klocwork": {
+                "SkipKlocworkScan": true
+            }
+        },
+        {
+            "Name": "build",
+            "Description": "build for ehl-zephyr-i226",
+            "ProjectFile": "./build.sh",
+            "ProjectType": "Script",
+            "WorkingDirectory": "idf",
+            "AdditionalFlags": "",
+            "AdditionalEnvVars": "",
+            "Klocwork": {
+                "SkipKlocworkScan": true
+            }
+        }
+    ],    
+    "SchemaVersion": "1.0"
+}
