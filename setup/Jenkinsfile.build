@@ -86,7 +86,7 @@ pipeline {
     agent {
         kubernetes {
             cloud linuxcloudName
-            defaultContainer 'build-environment'
+            defaultContainer 'build-environment1'
             label "linux-builds-${env.JOB_BASE_NAME}-${UUID.randomUUID().toString()}"
             slaveConnectTimeout '600000'
             yaml podDefinitionYaml
@@ -118,7 +118,7 @@ pipeline {
             parallel {
                 stage("Henosis-Repo") {
                     steps {
-                    sh""" ls /build/tools"""
+                    //sh""" ls /build/tools"""
                     // checkout([$class: 'GitSCM',
                     // userRemoteConfigs: [[credentialsId: 'GitHub-Token', url: 'https://github.com/intel-innersource/libraries.devops.jenkins.cac.git']],
                     // branches: [[name: 'master']],
