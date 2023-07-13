@@ -211,7 +211,7 @@ pipeline {
 }
 
 // Prepare the workspace for the ingredient
-void PrepareWS(String BuildConfig="idf/BuildConfig.json") {
+void PrepareWS(String BuildConfig="abi/idf/BuildConfig.json") {
     log.Debug("Enter")
 
     log.Info("This build is running on Node:${env.NODE_NAME} WorkSpace: ${env.WORKSPACE}")
