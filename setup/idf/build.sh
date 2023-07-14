@@ -22,6 +22,7 @@ apps="echo_server"
 
 function header () {
     echo "Initiate Build for "${apps}
+    pip install pyelftools
 }
 
 function build_app () {
